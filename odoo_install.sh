@@ -38,6 +38,43 @@ INSTALL_NGINX=true
 ADMIN_PASSWORD="admin"
 # Set to "True" to generate a random password, "False" to use the variable in ADMIN_PASSWORD
 GENERATE_RANDOM_PASSWORD="True"
+PYTHON_VERSION="3.12.0"
+#------------------------------
+# Python Function Definitions
+#------------------------------
+
+check_python_version() {
+    if command -v python3 &>/dev/null; then
+        INSTALLED_PYTHON_VERSION=$(python3 -V | awk '{print $2}')
+        if [[ "$INSTALLED_PYTHON_VERSION" == "$PYTHON_VERSION" ]]; then
+            echo "Required Python version $PYTHON_VERSION is already installed."
+            return
+        fi
+    fi
+
+    echo "Installing pyenv and Python $PYTHON_VERSION..."
+    # Install dependencies
+    sudo apt-get update
+    sudo apt-get install -y make build-essential libssl-dev zlib1g-dev \
+    libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev \
+    libncursesw5-dev xz-utils tk-dev libffi-dev liblzma-dev python-openssl git
+
+    # Install pyenv
+    curl https://pyenv.run | bash
+
+    # Update shell configuration
+    export PATH="$HOME/.pyenv/bin:$PATH"
+    eval "$(pyenv init -)"
+    eval "$(pyenv virtualenv-init -)"
+
+    # Install Python
+    pyenv install $PYTHON_VERSION
+    pyenv global $PYTHON_VERSION
+}
+
+echo "=== Check and Install Python ==="
+check_python_version
+
 #--------------------------------------------------
 # Update and Upgrade System
 #--------------------------------------------------
@@ -96,13 +133,20 @@ git clone $ODOO_REPO --depth 1 --branch $ODOO_BRANCH --single-branch .
 #--------------------------------------------------
 # Setup Python Virtual Environment and Install Requirements
 #--------------------------------------------------
-echo "=== Step 8: Setup Python Virtual Environment and Install Dependencies ==="
+echo "=== Setup Python Virtual Environment and Install Dependencies ==="
 sudo apt install -y python3-venv xfonts-75dpi
-sudo python3 -m venv $ODOO_HOME/venv
+# sudo python3 -m venv $ODOO_HOME/venv
+# sudo -u $ODOO_USER -H bash -c "
+# source $ODOO_HOME/venv/bin/activate
+# pip install -r $ODOO_HOME/requirements.txt
+# deactivate
+# "
 sudo -u $ODOO_USER -H bash -c "
-source $ODOO_HOME/venv/bin/activate
-pip install -r $ODOO_HOME/requirements.txt
-deactivate
+    pyenv install -s $PYTHON_VERSION
+    pyenv virtualenv $PYTHON_VERSION venv
+    pyenv activate venv
+    pip install -r $ODOO_HOME/requirements.txt
+    deactivate
 "
 
 #--------------------------------------------------
