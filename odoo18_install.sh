@@ -1,5 +1,19 @@
 #!/bin/bash
-
+################################################################################
+# Script for installing Odoo on Ubuntu 24.04
+# Author: Prashant Prajapati
+#-------------------------------------------------------------------------------
+# This script will install Odoo on your Ubuntu server. It can install multiple Odoo instances
+# in one Ubuntu because of the different xmlrpc_ports
+#-------------------------------------------------------------------------------
+# Make a new file:
+# sudo nano odoo_install.sh
+# Place this content in it and then make the file executable:
+# sudo chmod +x odoo_install.sh
+# Execute the script to install Odoo:
+# ./odoo_install
+# Install WKHTML TO PDF before run script
+################################################################################
 # Common variables
 ODOO_USER="odoo18"
 ODOO_HOME="/opt/$ODOO_USER"
@@ -10,28 +24,33 @@ ODOO_SERVICE="/etc/systemd/system/$ODOO_USER.service"
 ODOO_DB_USER="$ODOO_USER"
 ODOO_DB_PASS="123456"
 OE_PORT="8069"
+# Set the default Odoo longpolling port (you still have to use -c /etc/odoo-server.conf for example to use this.)
 LONGPOLL_PORT="8072"
 # Set the website name
 WEBSITE_NAME="_"
-# Set the default Odoo longpolling port (you still have to use -c /etc/odoo-server.conf for example to use this.)
-LONGPOLLING_PORT="8072"
 # Set to "True" to install certbot and have ssl enabled, "False" to use http
 ENABLE_SSL="True"
 # Provide Email to register ssl certificate
 ADMIN_EMAIL="odoo@example.com"
  # Set to 'true' to install and configure Nginx
 INSTALL_NGINX=true
-
-echo "=== Step 2: Update the Server ==="
+ # Set Strong admin password
+ADMIN_PASSWORD="admin"
+# Set to "True" to generate a random password, "False" to use the variable in ADMIN_PASSWORD
+GENERATE_RANDOM_PASSWORD="True"
+#--------------------------------------------------
+# Update and Upgrade System
+#--------------------------------------------------
+echo "=== Updating and Upgrading System ==="
 sudo apt-get update && sudo apt-get upgrade -y
 
-echo "=== Step 3: Secure the Server ==="
+echo "=== Secure the Server ==="
 sudo apt-get install -y openssh-server fail2ban
 sudo systemctl start fail2ban
 sudo systemctl enable fail2ban
 sudo systemctl status fail2ban
 
-echo "=== Step 4: Install Packages and Libraries ==="
+echo "=== Install Packages and Libraries ==="
 sudo apt-get install -y python3-pip python3-dev libxml2-dev libxslt1-dev zlib1g-dev \
 libsasl2-dev libldap2-dev build-essential libssl-dev libffi-dev libmysqlclient-dev \
 libjpeg-dev libpq-dev libjpeg8-dev liblcms2-dev libblas-dev libatlas-base-dev \
@@ -43,20 +62,40 @@ sudo ln -s /usr/bin/nodejs /usr/bin/node || true
 # Install less and clean-css
 sudo npm install -g less less-plugin-clean-css
 
-echo "=== Step 5: Set Up the Database Server ==="
+#--------------------------------------------------
+# Install PostgreSQL
+#--------------------------------------------------
+echo "=== Set Up the Database Server ==="
 sudo apt-get install -y postgresql
 # sudo -u postgres createuser --createdb --username postgres --no-createrole --superuser --pwprompt $ODOO_DB_USER
 sudo -u postgres psql -c "CREATE ROLE $ODOO_DB_USER WITH LOGIN SUPERUSER CREATEDB PASSWORD '$ODOO_DB_PASS';"
 
-echo "=== Step 6: Create a System User for Odoo ==="
+# Check if PostgreSQL service is running
+if ! sudo systemctl is-active --quiet postgresql; then
+    echo "PostgreSQL service is not running. Starting and enabling it..."
+    sudo systemctl start postgresql
+    sudo systemctl enable postgresql
+fi
+
+#--------------------------------------------------
+# Create Odoo User
+#--------------------------------------------------
+echo "=== Create a System User for Odoo ==="
 sudo adduser --system --home=$ODOO_HOME --group $ODOO_USER
 
-echo "=== Step 7: Clone Odoo Repository ==="
+#--------------------------------------------------
+# Clone Odoo Repository
+#--------------------------------------------------
+echo "=== Clone Odoo Repository ==="
 sudo -u $ODOO_USER -H bash -c "
 cd $ODOO_HOME
 git clone $ODOO_REPO --depth 1 --branch $ODOO_BRANCH --single-branch .
 "
+# sudo -u $ODOO_USER -H git clone $ODOO_REPO --depth 1 --branch $ODOO_BRANCH --single-branch $ODOO_HOME
 
+#--------------------------------------------------
+# Setup Python Virtual Environment and Install Requirements
+#--------------------------------------------------
 echo "=== Step 8: Setup Python Virtual Environment and Install Dependencies ==="
 sudo apt install -y python3-venv xfonts-75dpi
 sudo python3 -m venv $ODOO_HOME/venv
@@ -66,26 +105,38 @@ pip install -r $ODOO_HOME/requirements.txt
 deactivate
 "
 
+#--------------------------------------------------
+# Create Custom Modules Directory
+#--------------------------------------------------
 echo -e "\n---- Create custom module directory ----"
 sudo su $OE_USER -c "mkdir -p $OE_HOME/custom"
+# sudo chown -R $ODOO_USER:$ODOO_USER $ODOO_HOME/custom
 
-echo "=== Step 9: Configure Odoo ==="
-sudo cp $ODOO_HOME/debian/odoo.conf $ODOO_CONFIG
+#--------------------------------------------------
+# Configure Odoo
+#--------------------------------------------------
+echo "=== Configure Odoo ==="
+# admin_passwd = $ADMIN_PASSWORD
+# sudo cp $ODOO_HOME/debian/odoo.conf $ODOO_CONFIG
 sudo bash -c "cat > $ODOO_CONFIG" <<EOF
 [options]
-admin_passwd = admin
 db_host = localhost
 db_port = 5432
 db_user = $ODOO_DB_USER
 db_password = $ODOO_DB_PASS
-addons_path = $ODOO_HOME/addons, $OE_HOME/custom
-default_productivity_apps = True
+addons_path = $ODOO_HOME/addons,$ODOO_HOME/custom
 without_demo = all
-proxy_mode = True
 logfile = /var/log/odoo/$ODOO_USER.log
 longpolling_port = $LONGPOLL_PORT
 http_port = $OE_PORT
+xmlrpc_port = $OE_PORT
 EOF
+
+if [ $GENERATE_RANDOM_PASSWORD = "True" ]; then
+    echo -e "* Generating random admin password"
+    ADMIN_PASSWORD=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1)
+fi
+sudo su root -c "printf 'admin_passwd = ${ADMIN_PASSWORD}\n' >> /etc/${ODOO_CONFIG}.conf"
 
 sudo chown $ODOO_USER: $ODOO_CONFIG
 sudo chmod 640 $ODOO_CONFIG
@@ -94,12 +145,14 @@ sudo chmod 640 $ODOO_CONFIG
 sudo mkdir -p /var/log/odoo
 sudo chown $ODOO_USER:root /var/log/odoo
 
-echo "=== Step 10: Setup Odoo as a Systemd Service ==="
+#--------------------------------------------------
+# Setup Odoo as a Systemd Service
+#--------------------------------------------------
+echo "=== Setup Odoo as a Systemd Service ==="
 sudo bash -c "cat > $ODOO_SERVICE" <<EOF
 [Unit]
-Description=Odoo18
-Requires=postgresql.service
-After=network.target postgresql.service
+Description=$ODOO_HOME Info
+After=network.target
 
 [Service]
 Type=simple
@@ -117,12 +170,21 @@ EOF
 sudo chmod 755 $ODOO_SERVICE
 sudo chown root: $ODOO_SERVICE
 
+# Reload systemd and enable Odoo service
+sudo systemctl daemon-reload
+sudo systemctl enable $ODOO_USER
+sudo systemctl start $ODOO_USER
+
+#--------------------------------------------------
+# Install and Configure Nginx (Optional)
+# https://github.com/odoomates/odoosamples/blob/main/odoo_nginx_conf
+#--------------------------------------------------
 if [ "$INSTALL_NGINX" = true ]; then
     echo -e "\n---- Installing and setting up Nginx ----"
     sudo apt install nginx -y
 
     echo "=== Configuring Nginx for Odoo ==="
-    NGINX_CONF="/etc/nginx/sites-available/$WEBSITE_NAME"
+    NGINX_CONF="/etc/nginx/sites-available/nginx_$ODOO_USER"
     sudo bash -c "cat > $NGINX_CONF" <<EOF
 upstream odoo {
     server 127.0.0.1:$OE_PORT;
@@ -203,5 +265,20 @@ else
 fi
 
 echo "=== Installation Complete ==="
-echo "To start Odoo, run: sudo systemctl start odoo18"
-echo "To enable Odoo at boot: sudo systemctl enable odoo18"
+echo "-----------------------------------------------------------"
+echo "Done! The Odoo server is up and running. Specifications:"
+echo "Port: $OE_PORT"
+echo "User service: $ODOO_USER"
+echo "Configuration file location: $ODOO_CONFIG"
+echo "Logfile location: /var/log/odoo/$ODOO_USER.log"
+echo "User PostgreSQL: $ODOO_DB_USER"
+echo "Code location: $ODOO_HOME"
+echo "Addons folder: $ODOO_HOME/custom/"
+echo "Password superadmin (database): $ADMIN_PASSWORD"
+echo "Start Odoo service: sudo systemctl start $ODOO_USER"
+echo "Stop Odoo service: sudo systemctl stop $ODOO_USER"
+echo "Restart Odoo service: sudo systemctl restart $ODOO_USER"
+if [ "$INSTALL_NGINX" = true ]; then
+    echo "Nginx configuration file: /etc/nginx/sites-available/nginx_$ODOO_USER"
+fi
+echo "-----------------------------------------------------------"
