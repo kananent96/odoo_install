@@ -33,7 +33,8 @@ sudo npm install -g less less-plugin-clean-css
 
 echo "=== Step 5: Set Up the Database Server ==="
 sudo apt-get install -y postgresql
-sudo -u postgres createuser --createdb --username postgres --no-createrole --superuser --pwprompt $ODOO_DB_USER
+# sudo -u postgres createuser --createdb --username postgres --no-createrole --superuser --pwprompt $ODOO_DB_USER
+sudo -u postgres psql -c "CREATE ROLE $ODOO_DB_USER WITH LOGIN SUPERUSER CREATEDB PASSWORD '$ODOO_DB_PASS';"
 
 echo "=== Step 6: Create a System User for Odoo ==="
 sudo adduser --system --home=$ODOO_HOME --group $ODOO_USER
@@ -53,6 +54,9 @@ pip install -r $ODOO_HOME/requirements.txt
 deactivate
 "
 
+echo -e "\n---- Create custom module directory ----"
+sudo su $OE_USER -c "mkdir -p $OE_HOME/custom"
+
 echo "=== Step 9: Configure Odoo ==="
 sudo cp $ODOO_HOME/debian/odoo.conf $ODOO_CONFIG
 sudo bash -c "cat > $ODOO_CONFIG" <<EOF
@@ -62,9 +66,12 @@ db_host = localhost
 db_port = 5432
 db_user = $ODOO_DB_USER
 db_password = $ODOO_DB_PASS
-addons_path = $ODOO_HOME/addons
+addons_path = $ODOO_HOME/addons, $OE_HOME/custom
 default_productivity_apps = True
+without_demo = all
+proxy_mode = True
 logfile = /var/log/odoo/$ODOO_USER.log
+longpolling_port = 8072
 EOF
 
 sudo chown $ODOO_USER: $ODOO_CONFIG
