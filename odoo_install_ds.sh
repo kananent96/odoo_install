@@ -59,11 +59,15 @@ sudo systemctl enable fail2ban
 sudo systemctl status fail2ban --no-pager
 
 echo "=== Install Packages and Libraries ==="
-sudo apt-get install -y python3-pip python3-dev python3-venv libxml2-dev libxslt1-dev zlib1g-dev \
-libsasl2-dev libldap2-dev build-essential libssl-dev libffi-dev libmysqlclient-dev \
-libjpeg-dev libpq-dev libjpeg8-dev liblcms2-dev libblas-dev libatlas-base-dev \
-npm nodejs git wget xfonts-75dpi
+sudo apt-get install -y python3-pip
+sudo apt install python3-venv
+sudo apt-get install -y python3-dev libxml2-dev libxslt1-dev zlib1g-dev libsasl2-dev libldap2-dev build-essential libssl-dev libffi-dev libmysqlclient-dev libjpeg-dev libpq-dev libjpeg8-dev liblcms2-dev libblas-dev libatlas-base-dev
 
+#--------------------------------------------------
+# Install Node
+#--------------------------------------------------
+echo "=== Install Node/ npm ==="
+sudo apt-get install -y npm
 # Create node symlink
 sudo ln -s /usr/bin/nodejs /usr/bin/node || true
 
@@ -78,7 +82,16 @@ sudo apt-get install -y postgresql postgresql-contrib
 
 # Create PostgreSQL user with secure random password
 echo "=== Create PostgreSQL User ==="
-sudo -u postgres psql -c "CREATE USER $ODOO_DB_USER WITH SUPERUSER CREATEDB PASSWORD '$ODOO_DB_PASS';"
+# Create PostgreSQL user with secure random password
+echo "=== Create PostgreSQL User ==="
+PGUSER_EXISTS=$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='$ODOO_DB_USER'")
+if [ "$PGUSER_EXISTS" != "1" ]; then
+    sudo -u postgres psql -c "CREATE USER $ODOO_DB_USER WITH SUPERUSER CREATEDB PASSWORD '$ODOO_DB_PASS';"
+    echo "✅ PostgreSQL user '$ODOO_DB_USER' created."
+else
+    echo "ℹ️ PostgreSQL user '$ODOO_DB_USER' already exists. Skipping creation."
+fi
+# sudo -u postgres psql -c "CREATE USER $ODOO_DB_USER WITH SUPERUSER CREATEDB PASSWORD '$ODOO_DB_PASS';"
 
 # Check if PostgreSQL service is running
 if ! sudo systemctl is-active --quiet postgresql; then
@@ -91,13 +104,20 @@ fi
 # Create Odoo User
 #--------------------------------------------------
 echo "=== Create a System User for Odoo ==="
+if [ -d "$ODOO_HOME" ]; then
+    echo "⚠️  $ODOO_HOME already exists. Removing..."
+    sudo rm -rf /opt/odoo18
+fi
 sudo adduser --system --home=$ODOO_HOME --group --shell /bin/bash $ODOO_USER
 
 #--------------------------------------------------
 # Clone Odoo Repository
 #--------------------------------------------------
 echo "=== Clone Odoo Repository ==="
-sudo -u $ODOO_USER -H bash -c "git clone $ODOO_REPO --depth 1 --branch $ODOO_BRANCH --single-branch $ODOO_HOME"
+sudo mkdir -p "$ODOO_HOME"
+sudo chown -R "$ODOO_USER":"$ODOO_USER" "$ODOO_HOME"
+sudo -u "$ODOO_USER" -H git clone "$ODOO_REPO" --depth 1 --branch "$ODOO_BRANCH" --single-branch "$ODOO_HOME"
+
 
 #--------------------------------------------------
 # Setup Python Virtual Environment and Install Requirements
