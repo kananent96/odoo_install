@@ -45,7 +45,8 @@ INSTALL_NGINX="true"
 ADMIN_PASSWORD="admin"
 # Set to "True" to generate a random password, "False" to use the variable in ADMIN_PASSWORD
 GENERATE_RANDOM_PASSWORD="True"
-
+# Set odoo db name as per requirements
+ODOO_DB_NAME="odoo18"
 #--------------------------------------------------
 # Update and Upgrade System
 #--------------------------------------------------
@@ -149,12 +150,14 @@ db_host = localhost
 db_port = 5432
 db_user = $ODOO_DB_USER
 db_password = $ODOO_DB_PASS
+db_name = $ODOO_DB_NAME
 addons_path = $ODOO_HOME/addons,$ODOO_HOME/custom
 without_demo = all
 logfile = /var/log/odoo/$ODOO_USER.log
 longpolling_port = $LONGPOLL_PORT
 http_port = $OE_PORT
 xmlrpc_port = $OE_PORT
+list_db = False
 EOF
 
 if [ "$GENERATE_RANDOM_PASSWORD" = "True" ]; then
