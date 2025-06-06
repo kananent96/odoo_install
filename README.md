@@ -20,7 +20,7 @@ sudo wget https://raw.githubusercontent.com/kananent96/odoo_install/18.0/odoo_in
 
 2. Modify the parameters as you wish.
 ```
-sudo nano odoo_install_ds.git
+sudo nano odoo_install_ds.sh
 ```
 ##### 2. Modify the parameters as you wish.
 There are a few things you can configure, this is the most used list:<br/>
