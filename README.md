@@ -15,5 +15,6 @@ Clone your repository and run the script as follows:
 
 ```bash
 git clone -b 18.0 https://github.com/kananent96/odoo_install.git
+sudo nano odoo_install.git
 sudo chmod +x odoo_install.sh
 sudo ./odoo_install.sh
