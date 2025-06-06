@@ -14,8 +14,7 @@ This script automates the installation of Odoo on Ubuntu systems.
 Clone your repository and run the script as follows:
 
 ```bash
-git clone -b 18.0 https://github.com/kananent96/odoo_install.git
-cd odoo_install
+sudo wget https://raw.githubusercontent.com/kananent96/odoo_install/18.0/odoo_install_ds.sh
 sudo nano odoo_install_ds.git
 sudo chmod +x odoo_install_ds.sh
 sudo ./odoo_install_ds.sh
