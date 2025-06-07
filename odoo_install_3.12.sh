@@ -102,6 +102,29 @@ if ! sudo systemctl is-active --quiet postgresql; then
 fi
 
 #--------------------------------------------------
+# Install Pyenv and Python 3.12.0
+#--------------------------------------------------
+echo "=== Install Python 3.12.0 with Pyenv ==="
+# Install pyenv dependencies
+sudo apt-get install -y make build-essential libssl-dev zlib1g-dev \
+libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm \
+libncursesw5-dev xz-utils tk-dev libffi-dev liblzma-dev
+
+# Install pyenv as Odoo user
+sudo -u $ODOO_USER -H bash <<'EOFPYENV'
+curl https://pyenv.run | bash
+echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
+echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
+echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+source ~/.bashrc
+pyenv install 3.12.0
+pyenv global 3.12.0
+EOFPYENV
+
+# Verify installation
+sudo -u $ODOO_USER -H bash -c "source ~/.bashrc && python --version"
+
+#--------------------------------------------------
 # Create Odoo User
 #--------------------------------------------------
 echo "=== Create a System User for Odoo ==="
@@ -124,14 +147,27 @@ sudo -u "$ODOO_USER" -H git clone "$ODOO_REPO" --depth 1 --branch "$ODOO_BRANCH"
 # Setup Python Virtual Environment and Install Requirements
 #--------------------------------------------------
 echo "=== Setup Python Virtual Environment and Install Dependencies ==="
-sudo -u $ODOO_USER -H bash -c "
-    cd $ODOO_HOME
-    python3 -m venv venv
-    source venv/bin/activate
-    pip install wheel
-    pip install -r requirements.txt
-    deactivate
-"
+echo "=== Create Virtual Environment with Python 3.12.0 ==="
+# sudo -u $ODOO_USER -H bash -c "
+#     cd $ODOO_HOME
+#     python3 -m venv venv
+#     source venv/bin/activate
+#     pip install wheel
+#     pip install -r requirements.txt
+#     deactivate
+# "
+#--------------------------------------------------
+# Setup Python Virtual Environment with Python 3.12.0
+#--------------------------------------------------
+sudo -u $ODOO_USER -H bash <<EOFPYVENV
+source ~/.bashrc
+cd $ODOO_HOME
+python -m venv venv
+source venv/bin/activate
+pip install wheel
+pip install -r requirements.txt
+deactivate
+EOFPYVENV
 
 #--------------------------------------------------
 # Create Custom Modules Directory
